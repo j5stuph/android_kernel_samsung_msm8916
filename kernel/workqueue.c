@@ -273,6 +273,16 @@ static cpumask_var_t *wq_numa_possible_cpumask;
 static bool wq_disable_numa;
 module_param_named(disable_numa, wq_disable_numa, bool, 0444);
 
+/* see the comment above the definition of WQ_POWER_EFFICIENT */
+#ifdef CONFIG_WQ_POWER_EFFICIENT_DEFAULT
+static bool wq_power_efficient = true;
+#else
+static bool wq_power_efficient;
+#endif
+
+module_param_named(power_efficient, wq_power_efficient, bool, 0644);
+
+
 static bool wq_numa_enabled;		/* unbound NUMA affinity enabled */
 
 /* buf for wq_update_unbound_numa_attrs(), protected by CPU hotplug exclusion */
@@ -309,6 +319,10 @@ struct workqueue_struct *system_unbound_wq __read_mostly;
 EXPORT_SYMBOL_GPL(system_unbound_wq);
 struct workqueue_struct *system_freezable_wq __read_mostly;
 EXPORT_SYMBOL_GPL(system_freezable_wq);
+struct workqueue_struct *system_power_efficient_wq __read_mostly;
+EXPORT_SYMBOL_GPL(system_power_efficient_wq);
+struct workqueue_struct *system_freezable_power_efficient_wq __read_mostly;
+EXPORT_SYMBOL_GPL(system_freezable_power_efficient_wq);
 
 static int worker_thread(void *__worker);
 static void copy_workqueue_attrs(struct workqueue_attrs *to,
@@ -606,7 +620,7 @@ static void set_work_pool_and_clear_pending(struct work_struct *work,
 	 * owner.
 	 */
 	smp_wmb();
-	set_work_data(work, (unsigned long)pool_id << WORK_OFFQ_POOL_SHIFT, 0);
+	set_work_data(work, (unsigned lng)pool_id << WORK_OFFQ_POOL_SHIFT, 0);
 	/*
 	 * The following mb guarantees that previous clear of a PENDING bit
 	 * will not be reordered with any speculative LOADS or STORES from
@@ -1011,7 +1025,7 @@ static struct worker *find_worker_executing_work(struct worker_pool *pool,
  *
  * Schedule linked works starting from @work to @head.  Work series to
  * be scheduled starts at @work and includes any consecutive work with
- * WORK_STRUCT_LINKED set in its predecessor.
+ * WORK_STRUCT_LINKED s predecessor.
  *
  * If @nextp is not NULL, it's updated to point to the next work of
  * the last scheduled work.  This allows move_linked_works() to be
@@ -1448,7 +1462,7 @@ EXPORT_SYMBOL(queue_work_on);
 
 void delayed_work_timer_fn(unsigned long __data)
 {
-	struct delayed_work *dwork = (struct delayed_work *)__data;
+	struct delayed_work *dworkuct delayed_work *)__data;
 
 	/* should have been called from irqsafe timer with irq already off */
 	__queue_work(dwork->cpu, dwork->wq, &dwork->work);
@@ -1478,13 +1492,13 @@ static void __queue_delayed_work(int cpu, struct workqueue_struct *wq,
 	}
 
 	dwork->wq = wq;
+		/* timer isn't guaranteed to run in this cpu, record earlier */
+	if (cpu == WORK_CPU_UNBOUND)
+		cpu = raw_smp_processor_id();
 	dwork->cpu = cpu;
 	timer->expires = jiffies + delay;
 
-	if (unlikely(cpu != WORK_CPU_UNBOUND))
-		add_timer_on(timer, cpu);
-	else
-		add_timer(timer);
+	add_timer_on(timer, cpu);
 }
 
 /**
@@ -1897,7 +1911,7 @@ static void idle_worker_timeout(unsigned long __pool)
 	spin_unlock_irq(&pool->lock);
 }
 
-static void send_mayday(struct work_struct *work)
+static void send_mayday(struct work_s*work)
 {
 	struct pool_workqueue *pwq = get_work_pwq(work);
 	struct workqueue_struct *wq = pwq->wq;
@@ -2305,7 +2319,7 @@ recheck:
 
 	/*
 	 * ->scheduled list can only be filled while a worker is
-	 * preparing to process a work or actually processing it.
+	 * preparing to procesrk or actually processing it.
 	 * Make sure nobody diddled with it while I was sleeping.
 	 */
 	WARN_ON_ONCE(!list_empty(&worker->scheduled));
@@ -2412,7 +2426,7 @@ repeat:
 		__set_current_state(TASK_RUNNING);
 		list_del_init(&pwq->mayday_node);
 
-		spin_unlock_irq(&wq_mayday_lock);
+		spin_unlock_irq(&w_mayday_lock);
 
 		/* migrate to the target cpu if possible */
 		worker_maybe_bind_and_lock(pool);
@@ -2857,10 +2871,23 @@ static bool start_flush_work(struct work_struct *work, struct wq_barrier *barr)
 	lock_map_release(&pwq->wq->lockdep_map);
 
 	return true;
-already_gone:
-	spin_unlock_irq(&pool->lock);
+already_goneunlock_irq(&pool->lock);
 	return false;
 }
+
+static bool __flush_work(struct work_struct *work)
+{
+	struct wq_barrier barr;
+
+	if (start_flush_work(work, &barr)) {
+		wait_for_completion(&barr.done);
+		destroy_work_on_stack(&barr.work);
+		return true;
+	} else {
+		return false;
+	}
+}
+
 
 /**
  * flush_work - wait for a work to finish executing the last queueing instance
@@ -2875,18 +2902,11 @@ already_gone:
  */
 bool flush_work(struct work_struct *work)
 {
-	struct wq_barrier barr;
 
 	lock_map_acquire(&work->lockdep_map);
 	lock_map_release(&work->lockdep_map);
 
-	if (start_flush_work(work, &barr)) {
-		wait_for_completion(&barr.done);
-		destroy_work_on_stack(&barr.work);
-		return true;
-	} else {
-		return false;
-	}
+	return __flush_work(work);
 }
 EXPORT_SYMBOL_GPL(flush_work);
 
@@ -3305,7 +3325,7 @@ static ssize_t wq_cpumask_store(struct device *dev,
 	if (!attrs)
 		return -ENOMEM;
 
-	ret = cpumask_parse(buf, attrs->cpumask);
+	ret = cpumask_parse(buf, acpumask);
 	if (!ret)
 		ret = apply_workqueue_attrs(wq, attrs);
 
@@ -3785,7 +3805,7 @@ static void pwq_adjust_max_active(struct pool_workqueue *pwq)
 		pwq->max_active = wq->saved_max_active;
 
 		while (!list_empty(&pwq->delayed_works) &&
-		       pwq->nr_active < pwq->max_active)
+		       pwq->nr_active < pwqactive)
 			pwq_activate_first_delayed(pwq);
 
 		/*
@@ -3932,7 +3952,7 @@ static struct pool_workqueue *numa_pwq_tbl_install(struct workqueue_struct *wq,
 	/* link_pwq() can handle duplicate calls */
 	link_pwq(pwq);
 
-	old_pwq = rcu_access_pointer(wq->numa_pwq_tbl[node]);
+	old_pwq = rcu_acces_pointer(wq->numa_pwq_tbl[node]);
 	rcu_assign_pointer(wq->numa_pwq_tbl[node], pwq);
 	return old_pwq;
 }
@@ -4224,6 +4244,11 @@ struct workqueue_struct *__alloc_workqueue_key(const char *fmt,
 	 * workqueue, keep the previous behavior to avoid subtle breakages
 	 * on NUMA.
 	 */
+	 
+	/* see the comment above the definition of WQ_POWER_EFFICIENT */
+		if ((flags & WQ_POWER_EFFICIENT) && wq_power_efficient)
+		flags |= WQ_UNBOUND;
+	 
 	if ((flags & WQ_UNBOUND) && max_active == 1)
 		flags |= __WQ_ORDERED;
 
@@ -4372,7 +4397,7 @@ void destroy_workqueue(struct workqueue_struct *wq)
 
 	if (!(wq->flags & WQ_UNBOUND)) {
 		/*
-		 * The base ref is never dropped on per-cpu pwqs.  Directly
+		 * The base ref is never dropped o pwqs.  Directly
 		 * free the pwqs and wq.
 		 */
 		free_percpu(wq->cpu_pwqs);
@@ -4788,7 +4813,7 @@ static int __cpuinit workqueue_cpu_up_callback(struct notifier_block *nfb,
 		}
 		break;
 
-	case CPU_DOWN_FAILED:
+	PU_DOWN_FAILED:
 	case CPU_ONLINE:
 		mutex_lock(&wq_pool_mutex);
 
@@ -4881,7 +4906,14 @@ long work_on_cpu(int cpu, long (*fn)(void *), void *arg)
 
 	INIT_WORK_ONSTACK(&wfc.work, work_for_cpu_fn);
 	schedule_work_on(cpu, &wfc.work);
-	flush_work(&wfc.work);
+
+	/*
+	 * The work item is on-stack and can't lead to deadlock through
+	 * flushing.  Use __flush_work() to avoid spurious lockdep warnings
+	 * when work_on_cpu()s are nested.
+	 */
+	__flush_work(&wfc.work);
+
 	return wfc.ret;
 }
 EXPORT_SYMBOL_GPL(work_on_cpu);
@@ -5137,8 +5169,16 @@ static int __init init_workqueues(void)
 					    WQ_UNBOUND_MAX_ACTIVE);
 	system_freezable_wq = alloc_workqueue("events_freezable",
 					      WQ_FREEZABLE, 0);
+	system_power_efficient_wq = alloc_workqueue("events_power_efficient",
+					      WQ_POWER_EFFICIENT, 0);
+	system_freezable_power_efficient_wq = alloc_workqueue("events_freezable_power_efficient",
+					      WQ_FREEZABLE | WQ_POWER_EFFICIENT,
+					      0);
 	BUG_ON(!system_wq || !system_highpri_wq || !system_long_wq ||
-	       !system_unbound_wq || !system_freezable_wq);
+	       !system_unbound_wq || !system_freezable_wq ||
+	       !system_power_efficient_wq ||
+	       !system_freezable_power_efficient_wq);
 	return 0;
 }
 early_initcall(init_workqueues);
+
