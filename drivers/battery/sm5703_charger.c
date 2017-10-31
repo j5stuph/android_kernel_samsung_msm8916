@@ -34,14 +34,13 @@
 #include <linux/of_gpio.h>
 
 
-#define EN_NOBAT_IRQ	0
+#define EN_NOBAT_IRQ	1
 #define EN_DONE_IRQ 1
 #define EN_TOPOFF_IRQ 1
 #define EN_CHGON_IRQ 0
 #define EN_OTGFAIL_IRQ 1
 #define EN_VBUSLIMIT_IRQ	0
-#define EN_AICL_IRQ			1
-#define DEFAULT_CHARGING_CURRENT 500
+#define EN_AICL_IRQ			0
 
 #if (defined(CONFIG_SEC_J5_PROJECT) || defined(CONFIG_SEC_J5N_PROJECT)) && !defined(CONFIG_MACH_J5LTE_CHN_CMCC) 
 #define ENABLE_AICL 1
@@ -263,7 +262,7 @@ static void sm5703_enable_charger_switch(struct sm5703_charger_data *charger,
 		charger->full_charged = false;
 		pr_info("%s: turn off charger\n", __func__);
 
-		charger->charging_current = DEFAULT_CHARGING_CURRENT;
+		charger->charging_current = 0;
 		charger->nchgen = true;
 #ifdef CONFIG_FLED_SM5703
 		if (charger->fled_info == NULL)
