@@ -63,12 +63,12 @@
 			compatible = "arm,armv8";
 			reg = <0x0>;
 			enable-method = "qcom,arm-cortex-acc";
-			qcom,acc = <&acc0>;
+			qcom,limits-info = <&mitigation_profile0>;
+			qcom,ea = <&ea0>;
 			next-level-cache = <&L2_0>;
 			L2_0: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
-			      power-domain = <&l2ccc_0>;
 			};
 		};
 
@@ -77,7 +77,8 @@
 			compatible = "arm,armv8";
 			reg = <0x1>;
 			enable-method = "qcom,arm-cortex-acc";
-			qcom,acc = <&acc1>;
+			qcom,limits-info = <&mitigation_profile0>;
+			qcom,ea = <&ea1>;
 			next-level-cache = <&L2_0>;
 		};
 
@@ -86,7 +87,8 @@
 			compatible = "arm,armv8";
 			reg = <0x2>;
 			enable-method = "qcom,arm-cortex-acc";
-			qcom,acc = <&acc2>;
+			qcom,limits-info = <&mitigation_profile1>;
+			qcom,ea = <&ea2>;
 			next-level-cache = <&L2_0>;
 		};
 
@@ -95,7 +97,8 @@
 			compatible = "arm,armv8";
 			reg = <0x3>;
 			enable-method = "qcom,arm-cortex-acc";
-			qcom,acc = <&acc3>;
+			qcom,limits-info = <&mitigation_profile1>;
+			qcom,ea = <&ea3>;
 			next-level-cache = <&L2_0>;
 		};
 	};
@@ -122,34 +125,27 @@
 	ranges = <0 0 0 0xffffffff>;
 	compatible = "simple-bus";
 
-	l2ccc_0: clock-controller@b011000 {
-		compatible = "qcom,8916-l2ccc";
-		reg = <0x0b011000 0x1000>;
-		reg-names = "l2-base";
-	};
+	qcom,msm-core@a0000 {
+		compatible = "qcom,apss-core-ea";
+		reg = <0xa0000 0x1000>;
+		qcom,low-hyst-temp = <10>;
+		qcom,high-hyst-temp = <5>;
+		
+		ea0: ea0 {
+			sensor = <&sensor_information5>;
+		};
 
-	acc0:clock-controller@b088000 {
-		compatible = "qcom,arm-cortex-acc";
-		reg = <0x0b088000 0x1000>,
-		      <0x0b008000 0x1000>;
-	};
+		ea1: ea1 {
+			sensor = <&sensor_information5>;
+		};
 
-	acc1:clock-controller@b098000 {
-		compatible = "qcom,arm-cortex-acc";
-		reg = <0x0b098000 0x1000>,
-		      <0x0b008000 0x1000>;
-	};
+		ea2: ea2 {
+			sensor = <&sensor_information4>;
+		};
 
-	acc2:clock-controller@b0a8000 {
-		compatible = "qcom,arm-cortex-acc";
-		reg = <0x0b0a8000 0x1000>,
-		      <0x0b008000 0x1000>;
-	};
-
-	acc3:clock-controller@b0b8000 {
-		compatible = "qcom,arm-cortex-acc";
-		reg = <0x0b0b8000 0x1000>,
-		      <0x0b008000 0x1000>;
+		ea3: ea3 {
+			sensor = <&sensor_information4>;
+		};
 	};
 
 	intc: interrupt-controller@b000000 {
@@ -1763,6 +1759,55 @@
 			qcom,freq-req;
 		};
 	};
+
+	qcom,sensor-information {
+		compatible = "qcom,sensor-information";
+
+		sensor_information0: qcom,sensor-information-0 {
+			qcom,sensor-type = "tsens";
+			qcom,sensor-name = "tsens_tz_sensor0";
+		};
+
+		sensor_information1: qcom,sensor-information-1 {
+			qcom,sensor-type = "tsens";
+			qcom,sensor-name = "tsens_tz_sensor1";
+		};
+
+		sensor_information2: qcom,sensor-information-2 {
+			qcom,sensor-type = "tsens";
+			qcom,sensor-name = "tsens_tz_sensor2";
+		};
+
+		sensor_information3: qcom,sensor-information-3 {
+			qcom,sensor-type = "tsens";
+			qcom,sensor-name = "tsens_tz_sensor3";
+		};
+
+		sensor_information4: qcom,sensor-information-4 {
+			qcom,sensor-type = "tsens";
+			qcom,sensor-name = "tsens_tz_sensor4";
+		};
+
+		sensor_information5: qcom,sensor-information-5 {
+			qcom,sensor-type = "tsens";
+			qcom,sensor-name = "tsens_tz_sensor5";
+		};
+	};
+
+	mitigation_profile0: qcom,limit_info-0 {
+		qcom,temperature-sensor = <&sensor_information5>;
+		qcom,boot-frequency-mitigate;
+		qcom,hotplug-mitigation-enable;
+		qcom,emergency-frequency-mitigate;
+	};
+
+	mitigation_profile1: qcom,limit_info-1 {
+		qcom,temperature-sensor = <&sensor_information4>;
+		qcom,boot-frequency-mitigate;
+		qcom,hotplug-mitigation-enable;
+		qcom,emergency-frequency-mitigate;
+	};
+
 
 	qcom,memshare {
 		compatible = "qcom,memshare";
