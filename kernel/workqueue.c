@@ -620,7 +620,7 @@ static void set_work_pool_and_clear_pending(struct work_struct *work,
 	 * owner.
 	 */
 	smp_wmb();
-	set_work_data(work, (unsigned lng)pool_id << WORK_OFFQ_POOL_SHIFT, 0);
+	set_work_data(work, (unsigned long)pool_id << WORK_OFFQ_POOL_SHIFT, 0);
 	/*
 	 * The following mb guarantees that previous clear of a PENDING bit
 	 * will not be reordered with any speculative LOADS or STORES from
@@ -1025,7 +1025,7 @@ static struct worker *find_worker_executing_work(struct worker_pool *pool,
  *
  * Schedule linked works starting from @work to @head.  Work series to
  * be scheduled starts at @work and includes any consecutive work with
- * WORK_STRUCT_LINKED s predecessor.
+ * WORK_STRUCT_LINKED set in its predecessor.
  *
  * If @nextp is not NULL, it's updated to point to the next work of
  * the last scheduled work.  This allows move_linked_works() to be
@@ -1462,7 +1462,7 @@ EXPORT_SYMBOL(queue_work_on);
 
 void delayed_work_timer_fn(unsigned long __data)
 {
-	struct delayed_work *dworkuct delayed_work *)__data;
+	struct delayed_work *dwork = (struct delayed_work *)__data;
 
 	/* should have been called from irqsafe timer with irq already off */
 	__queue_work(dwork->cpu, dwork->wq, &dwork->work);
@@ -1911,7 +1911,7 @@ static void idle_worker_timeout(unsigned long __pool)
 	spin_unlock_irq(&pool->lock);
 }
 
-static void send_mayday(struct work_s*work)
+static void send_mayday(struct work_struct *work)
 {
 	struct pool_workqueue *pwq = get_work_pwq(work);
 	struct workqueue_struct *wq = pwq->wq;
@@ -2319,7 +2319,7 @@ recheck:
 
 	/*
 	 * ->scheduled list can only be filled while a worker is
-	 * preparing to procesrk or actually processing it.
+	 * preparing to process a work or actually processing it.
 	 * Make sure nobody diddled with it while I was sleeping.
 	 */
 	WARN_ON_ONCE(!list_empty(&worker->scheduled));
@@ -2426,7 +2426,7 @@ repeat:
 		__set_current_state(TASK_RUNNING);
 		list_del_init(&pwq->mayday_node);
 
-		spin_unlock_irq(&w_mayday_lock);
+		spin_unlock_irq(&wq_mayday_lock);
 
 		/* migrate to the target cpu if possible */
 		worker_maybe_bind_and_lock(pool);
@@ -2871,7 +2871,8 @@ static bool start_flush_work(struct work_struct *work, struct wq_barrier *barr)
 	lock_map_release(&pwq->wq->lockdep_map);
 
 	return true;
-already_goneunlock_irq(&pool->lock);
+already_gone:
+	spin_unlock_irq(&pool->lock);
 	return false;
 }
 
@@ -3325,7 +3326,7 @@ static ssize_t wq_cpumask_store(struct device *dev,
 	if (!attrs)
 		return -ENOMEM;
 
-	ret = cpumask_parse(buf, acpumask);
+	ret = cpumask_parse(buf, attrs->cpumask);
 	if (!ret)
 		ret = apply_workqueue_attrs(wq, attrs);
 
@@ -3805,7 +3806,7 @@ static void pwq_adjust_max_active(struct pool_workqueue *pwq)
 		pwq->max_active = wq->saved_max_active;
 
 		while (!list_empty(&pwq->delayed_works) &&
-		       pwq->nr_active < pwqactive)
+		       pwq->nr_active < pwq->max_active)
 			pwq_activate_first_delayed(pwq);
 
 		/*
@@ -3952,7 +3953,7 @@ static struct pool_workqueue *numa_pwq_tbl_install(struct workqueue_struct *wq,
 	/* link_pwq() can handle duplicate calls */
 	link_pwq(pwq);
 
-	old_pwq = rcu_acces_pointer(wq->numa_pwq_tbl[node]);
+	old_pwq = rcu_access_pointer(wq->numa_pwq_tbl[node]);
 	rcu_assign_pointer(wq->numa_pwq_tbl[node], pwq);
 	return old_pwq;
 }
@@ -4397,7 +4398,7 @@ void destroy_workqueue(struct workqueue_struct *wq)
 
 	if (!(wq->flags & WQ_UNBOUND)) {
 		/*
-		 * The base ref is never dropped o pwqs.  Directly
+		 * The base ref is never dropped on per-cpu pwqs.  Directly
 		 * free the pwqs and wq.
 		 */
 		free_percpu(wq->cpu_pwqs);
@@ -4813,7 +4814,7 @@ static int __cpuinit workqueue_cpu_up_callback(struct notifier_block *nfb,
 		}
 		break;
 
-	PU_DOWN_FAILED:
+	case CPU_DOWN_FAILED:
 	case CPU_ONLINE:
 		mutex_lock(&wq_pool_mutex);
 
@@ -5181,4 +5182,3 @@ static int __init init_workqueues(void)
 	return 0;
 }
 early_initcall(init_workqueues);
-
